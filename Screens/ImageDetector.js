@@ -2,13 +2,11 @@ import React, { useState, useEffect }  from 'react';
 import {  View,Image,Text,TouchableOpacity,Modal } from 'react-native';
 import Svg, {Rect} from 'react-native-svg';
 import * as tf from '@tensorflow/tfjs';
-import { bundleResourceIO } from '@tensorflow/tfjs-react-native';
+import { fetch,bundleResourceIO } from '@tensorflow/tfjs-react-native';
 import * as blazeface from '@tensorflow-models/blazeface';
 import * as jpeg from 'jpeg-js'
 import * as ImagePicker from 'expo-image-picker';
 import { primaryStyle } from '../styles/globStyles';
-import * as FileSystem from 'expo-file-system';
-import { Buffer } from "buffer";
 import ChoiceModal from '../Components/ChoiceModal';
 
 export default function ImageDetector(){
@@ -23,28 +21,30 @@ export default function ImageDetector(){
     useEffect(() => {
 
         async function loadModel(){
-          console.log("[+] Application started")
-          //Wait for tensorflow module to be ready
-          await tf.ready();
-          console.log("[+] Loading custom mask detection model")
-          //Replce model.json and group1-shard.bin with your own custom model
+			console.log("[+] Application started")
+			//Wait for tensorflow module to be ready
+            const tfReady = await tf.ready();
+			console.log("[+] Loading custom mask detection model")
+			//Replce model.json and group1-shard.bin with your own custom model
 
-          const modelJSON = require("../assets/models/model.json");
+			const modelJSON = require("../assets/models/model.json");
+			const modelWeights = require("../assets/models/group1-shard1of3.bin")
+			const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
+			const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
 
-		  const modelWeights1 = require("../assets/models/group1-shard1of3.bin")
-          const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
-          const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
+			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights,modelWeights2,modelWeights3]));
+			console.log("[+] Loading pre-trained face detection model")
+			//Blazeface is a face detection model provided by Google
+			const faceDetector =  await blazeface.load();
+			
+			//Assign model to variable
+			setMaskDetector(maskDetector)
+			setFaceDetector(faceDetector)
 
-          const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights1,modelWeights2,modelWeights3]));
-          console.log("[+] Loading pre-trained face detection model")
+			console.log("[+] Model Loaded")
 
-          //Blazeface is a face detection model provided by Google
-          const faceDetector =  await blazeface.load();
-          //Assign model to variable
-          setMaskDetector(maskDetector)
-          setFaceDetector(faceDetector)
 
-          console.log("[+] Model Loaded")
+		  
         }
         loadModel()
 
@@ -55,7 +55,6 @@ export default function ImageDetector(){
 		const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
 			allowsEditing : true,
-			aspect: [1, 1],
 			quality: 1,
 		});
 		
@@ -68,12 +67,13 @@ export default function ImageDetector(){
 	async function openCamera () {
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
-            aspect: [1, 1],
             quality: 1,
         });
     
         if (!result.cancelled) {
 			setFaces([])
+			// const newUri = await resizeImage(result.uri)
+
 			setImage(result.uri);
 		}
     }
@@ -95,124 +95,147 @@ export default function ImageDetector(){
     }
 
 
-
+	// async function resizeImage(path){
+	// 	const response =  await manipulateAsync(
+	// 		path,
+	// 		[{resize : {height : 1080,width : 1080}}],
+	// 		/* 
+	// 		800×600, 
+	// 		960×720, 
+	// 		1024×768,
+	// 		1280×960,
+	// 		1440×1080,
+	// 		1600×1200, 
+	// 		*/
+	// 		{ compress: 1, format: SaveFormat.JPEG } // 0->hight compression 1->low compression
+	// 	)
+	// 	return response.uri
+	// }
+	
     const getFaces = async() => {
-      try{
-		
-		setLoading(true)
-        console.log("[+] Retrieving image from link :"+image)
-  
-		const response = await FileSystem.readAsStringAsync(image, { encoding: 'base64' });
-		const rawImageData = Buffer.from(response, "base64");
+		if(image){
+			try{
+				setLoading(true)
+				console.log("[+] Retrieving image from link :"+image)
 
-        const imageTensor = imageToTensor(rawImageData).resizeBilinear([224,224])
-        const faces = await faceDetector.estimateFaces(imageTensor, false);
-        var tempArray=[]
+				const response = await fetch(image, {}, { isBinary: true });
+				const rawImageData = await response.arrayBuffer();
+				const imageTensor = imageToTensor(rawImageData).resizeBilinear([224,224])
+				const faces = await faceDetector.estimateFaces(imageTensor, false);
 
-        for (let i=0;i<faces.length;i++){
-			let color = "red"
-			let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
-			let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
-			let faceTensor = imageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
-			faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3])
-			let result = await maskDetector.predict(faceTensor).data()
-			console.log(result)
-			let accurracy = result[0]
+				var tempArray=[]
 
-			if(result[0] < result[1]){
-				color="green"
-				accurracy = result[1]
+				for (let i=0;i<faces.length;i++){
+					let color = "red"
+					let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
+					let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
+					let faceTensor = imageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
+					faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3])
+					let result = await maskDetector.predict(faceTensor).data()
+					console.log(result)
+					let accurracy = result[0]
+
+					if(result[0] < result[1]){
+						color="green"
+						accurracy = result[1]
+					}
+
+					tempArray.push({
+						id:i,
+						location:faces[i],
+						color:color,
+						acc : accurracy
+					})
+				}
+				setFaces(tempArray)
+				console.log("[+] Prediction Completed")
+				setLoading(false)
+			}catch(err){
+				console.log(err.message)
+				setLoading(false)
+				console.log("[-] Unable to load image")
 			}
-			tempArray.push({
-				id:i,
-				location:faces[i],
-				color:color,
-				acc : accurracy
-			})
-        }
-        setFaces(tempArray)
-        console.log("[+] Prediction Completed")
-		setLoading(false)
-      }catch{
-        console.log("[-] Unable to load image")
-      }
+		}
       
     }
-
+	
+	function handlePress(){
+		setShow(true)
+	}
 
 	if(!loading){
-  	return ( 
-    <View style={primaryStyle.container}>
-		
-		<Modal visible={show} animationType="fade" transparent>
-			<ChoiceModal openCamera={openCamera} setShow={setShow} pickImage={pickImage} />
-		</Modal>
-		<View style={{flex:1,width:"100%",height:"100%",justifyContent:"center",alignItems:"center"}}>
-		
-		<TouchableOpacity style={primaryStyle.primaryButton} onPress={()=>setShow(true)}>
-		  		<Text style={primaryStyle.primaryText}>Charger une image</Text>
-		</TouchableOpacity>
+		return ( 
+		<View style={primaryStyle.container}>
+			
+			<Modal visible={show} animationType="fade" transparent>
+				<ChoiceModal openCamera={openCamera} setShow={setShow} pickImage={pickImage} />
+			</Modal>
+			<View style={{flex:1,width:"100%",height:"100%",justifyContent:"center",alignItems:"center"}}>
+			
+			<TouchableOpacity style={primaryStyle.primaryButton} onPress={handlePress} >
+					<Text style={primaryStyle.primaryText}>Charger une image</Text>
+			</TouchableOpacity>
 
-        <View style={{margin:"15%"}}>
-            {
-				image && 
-				<Image
-					style={{width:224,height:224,borderRadius:10,resizeMode: "contain"}}
-					source={{
-						uri: image
-					}}
-					PlaceholderContent={<View>No Image Found</View>}
-            	/>
-			}
-            <Svg height="224" width="224" style={{marginTop:-224}}>
-            {
-                faces.map((face)=>{
-					return (
-						<Rect
-							key={face.id}
-							x={face.location.topLeft[0]}
-							y={face.location.topLeft[1]}
-							width={(face.location.bottomRight[0] - face.location.topLeft[0])}
-							height={(face.location.bottomRight[1] - face.location.topLeft[1])}
-							stroke={face.color}
-							strokeWidth="2"
-							fill="transparent"
-							
-						
-						/>
-					)
-                })
-            }   
-            </Svg>
-			{
-				faces.map((face)=>{
-					return(
-						<Text key={face.id} style={{
-						
-							color:face.color,
-							position:"absolute",
-							left:face.location.topLeft[0],
-							top:face.location.bottomRight[1],
-							fontWeight:"bold",
-							marginLeft:((face.location.bottomRight[0] - face.location.topLeft[0])/2)-10,
+			<View style={{margin:"15%"}}>
+				{
+					image && 
+					<Image
+						style={{width:224,height:224,borderRadius:10,resizeMode: "contain"}}
+						source={{
+							uri: image
 						}}
-						
-						>
-							{(face.acc*100).toFixed(2)} %
-						</Text>
-					)
-				})
-			}
+						PlaceholderContent={<View>No Image Found</View>}
+					/>
+				}
+				<Svg height="224" width="224" style={{marginTop:-224}}>
+				{
+					faces.map((face)=>{
+						return (
+							<Rect
+								key={face.id}
+								x={face.location.topLeft[0]}
+								y={face.location.topLeft[1]}
+								width={(face.location.bottomRight[0] - face.location.topLeft[0])}
+								height={(face.location.bottomRight[1] - face.location.topLeft[1])}
+								stroke={face.color}
+								strokeWidth="2"
+								fill="transparent"
+							/>
+						)
+					})
+				}   
+				</Svg>
+				{
+					faces.map((face)=>{
+						return(
+							<Text key={face.id} style={{
+							
+								color:face.color,
+								position:"absolute",
+								left:face.location.topLeft[0],
+								top:face.location.bottomRight[1],
+								fontWeight:"bold",
+								marginLeft:((face.location.bottomRight[0] - face.location.topLeft[0])/2)-10,
+							}}
+							
+							>
+								{(face.acc*100).toFixed(2)} %
+							</Text>
+						)
+					})
+				}
 
-        </View>
+			</View>
 
-        <TouchableOpacity style={primaryStyle.primaryButton}  onPress={getFaces}>
-			<Text style={primaryStyle.primaryText}>Predire</Text>
-		</TouchableOpacity> 
+			<TouchableOpacity style={primaryStyle.primaryButton}  onPress={getFaces}>
+				<Text style={primaryStyle.primaryText}>Predire</Text>
+			</TouchableOpacity> 
 
+			</View>
 		</View>
-    </View>
-  );
-	}else{return <View style={primaryStyle.container}><Text style={primaryStyle.primaryText}>Traitement en cours ...</Text></View>}
+	);
+	}
+	else{
+		return <View style={primaryStyle.container}><Text style={primaryStyle.primaryText}>Traitement en cours ...</Text></View>}
 }
 

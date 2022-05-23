@@ -1,4 +1,4 @@
-import { StyleSheet,View,Text,Dimensions } from "react-native";
+import { StyleSheet,View,Text,Dimensions,LogBox } from "react-native";
 import { primaryStyle } from "../styles/globStyles";
 import * as tf from '@tensorflow/tfjs';
 import React,{ useEffect,useState,useRef } from "react";
@@ -7,19 +7,20 @@ import { Camera } from 'expo-camera';
 import * as blazeface from "@tensorflow-models/blazeface"
 import Canvas from 'react-native-canvas';
 
+const { width, height } = Dimensions.get("window");
+LogBox.ignoreAllLogs(true);
+
 const TensorCamera = cameraWithTensors(Camera);
 
 
-export default function Detection () {
+export default function Detection() {
 
     const [maskDetector,setMaskDetector]=useState("")
     const [faceDetector,setFaceDetector]=useState("")
-
-    const [detectedColor,setDetectedColor]=useState()
-    const [detectedState,setDetectedState]=useState()
     const [detectedAcc,setDetectedAcc]=useState()
 
-    const canvasRef = useRef()
+    let context = useRef();
+    let canvas = useRef();
 
     let textureDim =
     Platform.OS === "ios"
@@ -30,91 +31,96 @@ export default function Detection () {
     useEffect(() => {
 
         async function loadModel(){
-          console.log("[+] Application started")
-          //Wait for tensorflow module to be ready
-          await tf.ready();
-          console.log("[+] Loading custom mask detection model")
-          //Replce model.json and group1-shard.bin with your own custom model
+            console.log("[+] Application started")
+            //Wait for tensorflow module to be ready
+            const tfReady = await tf.ready();
+            console.log("[+] Loading custom mask detection model")
+            //Replce model.json and group1-shard.bin with your own custom model
+            
+			const modelJSON = require("../assets/models/model.json");
+			const modelWeights = require("../assets/models/group1-shard1of3.bin")
+			const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
+			const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
+       
+			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights,modelWeights2,modelWeights3]));
+            console.log("[+] Loading pre-trained face detection model")
+            //Blazeface is a face detection model provided by Google
+            const faceDetector =  await blazeface.load();
+            //Assign model to variable
+            setMaskDetector(maskDetector)
+            setFaceDetector(faceDetector)
 
-          const modelJSON = require("../assets/models/model.json");
-
-          const modelWeights1 = require("../assets/models/group1-shard1of3.bin")
-          const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
-          const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
-
-          const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights1,modelWeights2,modelWeights3]));
-          console.log("[+] Loading pre-trained face detection model")
-
-          //Blazeface is a face detection model provided by Google
-          const faceDetector =  await blazeface.load();
-          //Assign model to variable
-          setMaskDetector(maskDetector)
-          setFaceDetector(faceDetector)
-
-          console.log("[+] Model Loaded")
+            console.log("[+] Model Loaded")
         }
         loadModel()
 
     }, []); 
   
 
+    async function handleCanvas(can) {
+        if (can) {
+            can.width = width;
+            can.height = height;
+            const ctx = can.getContext("2d");
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 2;
+            ctx.fillStyle = "red";
+
+            context.current = ctx;
+            canvas.current = can;
+        }
+    }
 
     function handleCameraStream(images) {
         
         const loop = async () => {
             try {
-
                 const nextImageTensor = images.next().value;
                 if (!maskDetector || !nextImageTensor)
                     throw new Error("Model or image not loaded");
             
                 const faces = await faceDetector.estimateFaces(nextImageTensor, false);
-
                 let tempArray = []
-
                 for (let i=0;i<faces.length;i++) {
-
-                    let color = "red"
-                    let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
-                    let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
-        
-
                     try {
-                        var faceTensor = nextImageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])                    
+                        let color = "red"
+                        let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
+                        let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
+                        let faceTensor = nextImageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
                         faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3])
                         let result = await maskDetector.predict(faceTensor).data()
+                        
                         let classDetected = "No Mask"
                         console.log(result)
                         
                         if(result[0] < result[1]){
                             classDetected = "Mask"
-                            setDetectedState("Mask")
-                            setDetectedColor("green")
                             setDetectedAcc(result[1])
                             color="green"
                             console.log("Mask")
                         }
                         else{
-                            setDetectedState("No Mask")
-                            setDetectedColor("red")
                             setDetectedAcc(result[0])
                             console.log("No Mask")
                         }
-
-                        tempArray.push({
+                        
+                        const detection = {
                             id:i,
-                            location:faces[i],
                             color:color,
+                            width :width*2,
+                            x : faces[i].topLeft[0]*1.5,
+                            y : faces[i].topLeft[1]*3.7,
+                            height : height*2,
                             class : classDetected,
                             acc : result[1]
-                        })
+                        }
+                        tempArray.push(detection)
 
                     } catch (error) {
                         console.log(error.message)
                     }
-                   
-                    
                 }
+                drawRectangle(tempArray)
                 requestAnimationFrame(loop);
 
             } catch (error) {
@@ -124,22 +130,46 @@ export default function Detection () {
         };
         loop();
     }
+ 
+
+    function drawRectangle(tempArray) {
+
+        if (!context.current || !canvas.current) 
+            return;
+
+        for (const predictions of tempArray ) {
+            const {x, y, width, height,color} = predictions
+
+            context.current.clearRect(x, y, width, height);
+            context.current.strokeStyle=color
+            context.current.strokeRect(
+                x,
+                y,
+                width ,
+                height ,
+            );
+
+            context.current.strokeText(
+                predictions.class,
+                x + 20,
+                y - 10
+            );
+        }
+    }
 
     return (
         maskDetector ? (
         <View style={primaryStyle.container}>
-            <Text style={{color:detectedColor,fontWeight:"bold",fontSize:22,marginBottom:"2%"}}>{detectedState} {(detectedAcc*100).toFixed(2)} %</Text>
             <TensorCamera
                 style={styles.camera}
                 type={Camera.Constants.Type.front}
                 resizeHeight={224}
-                cameraTextureHeight={textureDim.height}
-                cameraTextureWidth={textureDim.width}
                 resizeWidth={224}
                 resizeDepth={3}
                 onReady={handleCameraStream}
                 autorender={true}
             />
+            <Canvas style={styles.canvas} ref={handleCanvas} />
         </View>
         ):(
             <View style={primaryStyle.container} >
@@ -165,6 +195,7 @@ const styles = StyleSheet.create({
     canvas: {
         position: "absolute",
         zIndex: 100000000,
+        flex:1,
         width: "100%",
         height: "100%",
     },
