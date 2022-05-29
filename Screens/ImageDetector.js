@@ -8,6 +8,7 @@ import * as jpeg from 'jpeg-js'
 import * as ImagePicker from 'expo-image-picker';
 import { primaryStyle } from '../styles/globStyles';
 import ChoiceModal from '../Components/ChoiceModal';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 export default function ImageDetector(){
     	
@@ -55,26 +56,30 @@ export default function ImageDetector(){
 		const result = await ImagePicker.launchImageLibraryAsync({
 			mediaTypes: ImagePicker.MediaTypeOptions.Images,
 			allowsEditing : true,
-			quality: 1,
+			quality: 0.3,
 		});
 		
 		if (!result.cancelled) {
 			setFaces([])
-		 	setImage(result.uri);
+			const newUri = await resizeImage(result.uri)
+			setImage(newUri);
+		 	// setImage(result.uri);
 		}
 	}
 
 	async function openCamera () {
         const result = await ImagePicker.launchCameraAsync({
             allowsEditing: true,
-            quality: 1,
+            quality: 0.3,
         });
     
         if (!result.cancelled) {
 			setFaces([])
-			// const newUri = await resizeImage(result.uri)
+			// setImage(result.uri);
 
-			setImage(result.uri);
+			const newUri = await resizeImage(result.uri)
+			setImage(newUri);
+
 		}
     }
 
@@ -95,22 +100,22 @@ export default function ImageDetector(){
     }
 
 
-	// async function resizeImage(path){
-	// 	const response =  await manipulateAsync(
-	// 		path,
-	// 		[{resize : {height : 1080,width : 1080}}],
-	// 		/* 
-	// 		800×600, 
-	// 		960×720, 
-	// 		1024×768,
-	// 		1280×960,
-	// 		1440×1080,
-	// 		1600×1200, 
-	// 		*/
-	// 		{ compress: 1, format: SaveFormat.JPEG } // 0->hight compression 1->low compression
-	// 	)
-	// 	return response.uri
-	// }
+	async function resizeImage(path){
+		const response =  await manipulateAsync(
+			path,
+			[{resize : {height : 1080,width : 1080}}],
+			/* 
+			800×600, 
+			960×720, 
+			1024×768,
+			1280×960,
+			1440×1080,
+			1600×1200, 
+			*/
+			{ compress: 0.3, format: SaveFormat.JPEG } // 0->hight compression 1->low compression
+		)
+		return response.uri
+	}
 	
     const getFaces = async() => {
 		if(image){
@@ -130,14 +135,16 @@ export default function ImageDetector(){
 					let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
 					let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
 					let faceTensor = imageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
-					faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3])
-					let result = await maskDetector.predict(faceTensor).data()
+					faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3]).div(255)
+					.sub([0.485, 0.456, 0.406])
+					.div([0.229, 0.224, 0.225]);
+					let result = await maskDetector.predict(faceTensor).dataSync()
 					console.log(result)
-					let accurracy = result[0]
+					let accurracy = result[1]
 
-					if(result[0] < result[1]){
+					if(result[0] > result[1]){
 						color="green"
-						accurracy = result[1]
+						accurracy = result[0]
 					}
 
 					tempArray.push({
@@ -162,6 +169,8 @@ export default function ImageDetector(){
 	function handlePress(){
 		setShow(true)
 	}
+
+
 
 	if(!loading){
 		return ( 

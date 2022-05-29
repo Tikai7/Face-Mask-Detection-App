@@ -17,7 +17,6 @@ export default function Detection() {
 
     const [maskDetector,setMaskDetector]=useState("")
     const [faceDetector,setFaceDetector]=useState("")
-    const [detectedAcc,setDetectedAcc]=useState()
 
     let context = useRef();
     let canvas = useRef();
@@ -71,6 +70,8 @@ export default function Detection() {
         }
     }
 
+
+
     function handleCameraStream(images) {
         
         const loop = async () => {
@@ -87,20 +88,22 @@ export default function Detection() {
                         let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
                         let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
                         let faceTensor = nextImageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
-                        faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3])
-                        let result = await maskDetector.predict(faceTensor).data()
-                        
-                        let classDetected = "No Mask"
+                        faceTensor = faceTensor.resizeBilinear([224,224]).reshape([1,224,224,3]).div(255)
+                        .sub([0.485, 0.456, 0.406])
+                        .div([0.229, 0.224, 0.225]);
+
+                        let result = await maskDetector.predict(faceTensor).dataSync()
+                        let classDetected
+
                         console.log(result)
                         
-                        if(result[0] < result[1]){
-                            classDetected = "Mask"
-                            setDetectedAcc(result[1])
+                        if(result[0] > result[1]){
+                            classDetected = `Mask    ${result[0].toFixed(2)*100}%`
                             color="green"
                             console.log("Mask")
                         }
                         else{
-                            setDetectedAcc(result[0])
+                            classDetected = `No Mask    ${result[1].toFixed(2)*100}%`
                             console.log("No Mask")
                         }
                         
@@ -112,7 +115,6 @@ export default function Detection() {
                             y : faces[i].topLeft[1]*3.7,
                             height : height*2,
                             class : classDetected,
-                            acc : result[1]
                         }
                         tempArray.push(detection)
 
@@ -137,8 +139,11 @@ export default function Detection() {
         if (!context.current || !canvas.current) 
             return;
 
+
         for (const predictions of tempArray ) {
             const {x, y, width, height,color} = predictions
+
+
 
             context.current.clearRect(x, y, width, height);
             context.current.strokeStyle=color
