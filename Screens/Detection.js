@@ -1,11 +1,12 @@
 import { StyleSheet,View,Text,Dimensions,LogBox } from "react-native";
-import { primaryStyle } from "../styles/globStyles";
+import { BUTTON_COLOR,primaryStyle } from "../styles/globStyles";
 import * as tf from '@tensorflow/tfjs';
 import React,{ useEffect,useState,useRef } from "react";
 import { bundleResourceIO,cameraWithTensors } from "@tensorflow/tfjs-react-native";
 import { Camera } from 'expo-camera';
 import * as blazeface from "@tensorflow-models/blazeface"
 import Canvas from 'react-native-canvas';
+import { Ionicons } from '@expo/vector-icons'; 
 
 const { width, height } = Dimensions.get("window");
 LogBox.ignoreAllLogs(true);
@@ -111,8 +112,8 @@ export default function Detection() {
                             id:i,
                             color:color,
                             width :width*2,
-                            x : faces[i].topLeft[0]*1.5,
-                            y : faces[i].topLeft[1]*3.7,
+                            x : faces[i].topLeft[0]*1.1,
+                            y : faces[i].topLeft[1]*2.2,
                             height : height*2,
                             class : classDetected,
                         }
@@ -175,6 +176,7 @@ export default function Detection() {
                 autorender={true}
             />
             <Canvas style={styles.canvas} ref={handleCanvas} />
+            <Ionicons name="ios-camera-reverse" style={{marginTop:"3%"}} size={50} onPress={()=>{setTurnIt(!turnIt)}} color={BUTTON_COLOR}/>
         </View>
         ):(
             <View style={primaryStyle.container} >
@@ -201,8 +203,8 @@ const styles = StyleSheet.create({
         position: "absolute",
         zIndex: 100000000,
         flex:1,
-        width: "100%",
-        height: "100%",
+        width: "90%",
+        height: "80%",
     },
 });
 
