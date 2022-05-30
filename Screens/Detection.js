@@ -18,6 +18,8 @@ export default function Detection() {
 
     const [maskDetector,setMaskDetector]=useState("")
     const [faceDetector,setFaceDetector]=useState("")
+    const [turnIt,setTurnIt]=useState(true)
+
 
     let context = useRef();
     let canvas = useRef();
@@ -168,7 +170,7 @@ export default function Detection() {
         <View style={primaryStyle.container}>
             <TensorCamera
                 style={styles.camera}
-                type={Camera.Constants.Type.front}
+                type={turnIt ? Camera.Constants.Type.front : Camera.Constants.Type.back}
                 resizeHeight={224}
                 resizeWidth={224}
                 resizeDepth={3}
