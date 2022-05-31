@@ -64,9 +64,7 @@ export default function Detection() {
             can.width = width;
             can.height = height;
             const ctx = can.getContext("2d");
-            ctx.strokeStyle = "red";
             ctx.lineWidth = 2;
-            ctx.fillStyle = "red";
 
             context.current = ctx;
             canvas.current = can;
@@ -138,17 +136,25 @@ export default function Detection() {
  
 
     function drawRectangle(tempArray) {
-
         if (!context.current || !canvas.current) 
             return;
+            
+        context.current.clearRect(0, 0, canvas.current.width, canvas.current.height);
 
 
         for (const predictions of tempArray ) {
             const {x, y, width, height,color} = predictions
 
+            context.current.font = '18px Arial';
 
+            // context.current.strokeStyle = color
+            // context.current.font = '18px Arial';
+            // context.current.beginPath();   
+            // context.current.fillStyle = color
+            // context.current.fillText(predictions.class, x, y);
+            // context.current.rect(x, y, width, height); 
+            // context.current.stroke();
 
-            context.current.clearRect(x, y, width, height);
             context.current.strokeStyle=color
             context.current.strokeRect(
                 x,
@@ -163,6 +169,8 @@ export default function Detection() {
                 y - 10
             );
         }
+
+
     }
 
     return (

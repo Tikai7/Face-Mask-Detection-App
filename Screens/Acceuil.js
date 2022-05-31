@@ -10,19 +10,26 @@ export default function Acceuil({navigation}){
 		const permission = await ImagePicker.getCameraPermissionsAsync()
 		if(permission.granted)
 			navigation.navigate("Photos")
-		else
-			await ImagePicker.requestCameraPermissionsAsync()
+		else{
+			const newPerm = await ImagePicker.requestCameraPermissionsAsync()
+			if(newPerm.granted)
+				navigation.navigate("Photos")
+
+		}
 	}
 
 	async function handleNavigateDetection(){
 		const permission = await Camera.getCameraPermissionsAsync()
 		if(permission.granted)
 			navigation.navigate("Detection")
-		else
-			await Camera.requestCameraPermissionsAsync()
+		else{
+			const newPerm = await Camera.requestCameraPermissionsAsync()
+			if(newPerm.granted)
+				navigation.navigate("Detection")
+		}
 	}
 
-	
+
     return(
         <View style={primaryStyle.container}>
 

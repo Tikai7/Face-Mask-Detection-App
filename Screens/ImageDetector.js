@@ -169,7 +169,7 @@ export default function ImageDetector(){
 	function handlePress(){
 		setShow(true)
 	}
-
+	
 
 
 	if(!loading){
