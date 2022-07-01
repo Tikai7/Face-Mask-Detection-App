@@ -24,27 +24,19 @@ export default function Detection() {
     let context = useRef();
     let canvas = useRef();
 
-    let textureDim =
-    Platform.OS === "ios"
-        ? { width: 1920, height: 1080 }
-        : { width: 1200, height: 1600 };
-
-
     useEffect(() => {
 
         async function loadModel(){
             console.log("[+] Application started")
             //Wait for tensorflow module to be ready
-            const tfReady = await tf.ready();
+            await tf.ready();
             console.log("[+] Loading custom mask detection model")
             //Replce model.json and group1-shard.bin with your own custom model
             
 			const modelJSON = require("../assets/models/model.json");
-			const modelWeights = require("../assets/models/group1-shard1of3.bin")
-			const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
-			const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
+			const modelWeights = require("../assets/models/group1-shard1of1.bin")
        
-			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights,modelWeights2,modelWeights3]));
+			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,modelWeights));
             console.log("[+] Loading pre-trained face detection model")
             //Blazeface is a face detection model provided by Google
             const faceDetector =  await blazeface.load();

@@ -49,7 +49,6 @@ export default function AcceuilStack() {
             <Stack.Screen name="Acceuil" component={Acceuil} options={options} />
             <Stack.Screen name="Detection" component={Detection} options={options} />
             <Stack.Screen name="Photos" component={ImageDetector} options={options} />
-
         </Stack.Navigator>
     );
 }

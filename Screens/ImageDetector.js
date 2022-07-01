@@ -24,16 +24,14 @@ export default function ImageDetector(){
         async function loadModel(){
 			console.log("[+] Application started")
 			//Wait for tensorflow module to be ready
-            const tfReady = await tf.ready();
+            await tf.ready();
 			console.log("[+] Loading custom mask detection model")
 			//Replce model.json and group1-shard.bin with your own custom model
 
 			const modelJSON = require("../assets/models/model.json");
-			const modelWeights = require("../assets/models/group1-shard1of3.bin")
-			const modelWeights2 = require("../assets/models/group1-shard2of3.bin")
-			const modelWeights3 = require("../assets/models/group1-shard3of3.bin")
+			const modelWeights = require("../assets/models/group1-shard1of1.bin")
 
-			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,[modelWeights,modelWeights2,modelWeights3]));
+			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,modelWeights));
 			console.log("[+] Loading pre-trained face detection model")
 			//Blazeface is a face detection model provided by Google
 			const faceDetector =  await blazeface.load();
@@ -131,7 +129,7 @@ export default function ImageDetector(){
 				var tempArray=[]
 
 				for (let i=0;i<faces.length;i++){
-					let color = "red"
+					
 					let width = parseInt((faces[i].bottomRight[1] - faces[i].topLeft[1]))
 					let height = parseInt((faces[i].bottomRight[0] - faces[i].topLeft[0]))
 					let faceTensor = imageTensor.slice([parseInt(faces[i].topLeft[1]),parseInt(faces[i].topLeft[0]),0],[width,height,3])
@@ -140,7 +138,9 @@ export default function ImageDetector(){
 					.div([0.229, 0.224, 0.225]);
 					let result = await maskDetector.predict(faceTensor).dataSync()
 					console.log(result)
+
 					let accurracy = result[1]
+					let color = "red"
 
 					if(result[0] > result[1]){
 						color="green"
