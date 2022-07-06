@@ -14,7 +14,7 @@ LogBox.ignoreAllLogs(true);
 const TensorCamera = cameraWithTensors(Camera);
 
 
-export default function Detection() {
+export default function Detection({route}) {
 
     const [maskDetector,setMaskDetector]=useState("")
     const [faceDetector,setFaceDetector]=useState("")
@@ -30,11 +30,21 @@ export default function Detection() {
             console.log("[+] Application started")
             //Wait for tensorflow module to be ready
             await tf.ready();
-            console.log("[+] Loading custom mask detection model")
             //Replce model.json and group1-shard.bin with your own custom model
-            
-			const modelJSON = require("../assets/models/model.json");
-			const modelWeights = require("../assets/models/group1-shard1of1.bin")
+
+            let modelJSON
+			let modelWeights
+
+			if(route.params.clickIt === true){
+                console.log("[+] Loading custom mask detection model")
+			 	modelJSON = require("../assets/models/model.json");
+			 	modelWeights = require("../assets/models/group1-shard1of1.bin")
+			}
+			else{
+                console.log("[+] Loading mask detection model")
+				modelJSON = require("../assets/models/model_base.json");
+			 	modelWeights = require("../assets/models/group1-shard1of1_base.bin")
+			}
        
 			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,modelWeights));
             console.log("[+] Loading pre-trained face detection model")
@@ -138,15 +148,6 @@ export default function Detection() {
             const {x, y, width, height,color} = predictions
 
             context.current.font = '18px Arial';
-
-            // context.current.strokeStyle = color
-            // context.current.font = '18px Arial';
-            // context.current.beginPath();   
-            // context.current.fillStyle = color
-            // context.current.fillText(predictions.class, x, y);
-            // context.current.rect(x, y, width, height); 
-            // context.current.stroke();
-
             context.current.strokeStyle=color
             context.current.strokeRect(
                 x,

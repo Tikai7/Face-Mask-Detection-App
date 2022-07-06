@@ -10,7 +10,7 @@ import { primaryStyle } from '../styles/globStyles';
 import ChoiceModal from '../Components/ChoiceModal';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
-export default function ImageDetector(){
+export default function ImageDetector({route}){
     	
     const [faces,setFaces]=useState([])
     const [faceDetector,setFaceDetector]=useState("")
@@ -25,11 +25,22 @@ export default function ImageDetector(){
 			console.log("[+] Application started")
 			//Wait for tensorflow module to be ready
             await tf.ready();
-			console.log("[+] Loading custom mask detection model")
 			//Replce model.json and group1-shard.bin with your own custom model
+			
+			let modelJSON
+			let modelWeights
 
-			const modelJSON = require("../assets/models/model.json");
-			const modelWeights = require("../assets/models/group1-shard1of1.bin")
+			if(route.params.clickIt === true){
+				console.log("[+] Loading custom mask detection model")
+			 	modelJSON = require("../assets/models/model.json");
+			 	modelWeights = require("../assets/models/group1-shard1of1.bin")
+			}
+			else{
+				console.log("[+] Loading mask detection model")
+				modelJSON = require("../assets/models/model_base.json");
+			 	modelWeights = require("../assets/models/group1-shard1of1_base.bin")
+			}
+
 
 			const maskDetector = await tf.loadGraphModel(bundleResourceIO(modelJSON,modelWeights));
 			console.log("[+] Loading pre-trained face detection model")
@@ -101,7 +112,7 @@ export default function ImageDetector(){
 	async function resizeImage(path){
 		const response =  await manipulateAsync(
 			path,
-			[{resize : {height : 1080,width : 1080}}],
+			[{resize : {width : 1080}}],
 			/* 
 			800×600, 
 			960×720, 
